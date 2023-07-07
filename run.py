@@ -4,9 +4,20 @@ import re
 import requests
 from bs4 import BeautifulSoup
 import json
-
 from classes.EnvVariables import EnvVariables
 from classes.Quote import Quote
+import codecs
+def replace_unicode_escapes(text):
+    decoded_text = codecs.decode(text, 'unicode_escape')
+    return decoded_text
+def remove_unwanted_characters(text):
+    unwanted_chars = ["\u00e2\u0080\u009c", "\u00e2\u0080\u009d"]
+    cleaned_text = text
+    for char in unwanted_chars:
+        cleaned_text = cleaned_text.replace(char, "")
+
+    return cleaned_text
+
 
 desktop_path = os.path.expanduser("~/Desktop")
 env_file_path = os.path.join(desktop_path, "*.env")
@@ -22,24 +33,28 @@ if env_files:
         while True:
             base_url = env_vars.input_url
             response = requests.get(url)
-            soup = BeautifulSoup(response.text, 'html.parser')
+            response.encoding = response.apparent_encoding
+            html_content = response.text
+            soup = BeautifulSoup(html_content, 'html.parser')
 
 
             regex = r'var data = ([\s\S]*?)];'
             match = re.search(regex, str(soup))
             extracted_string = ""
+
             if match and match.group(1):
                 extracted_string = match.group(1)
-
             extracted_string = extracted_string + "]"
+
+
             parsed_data = json.loads(extracted_string)
-
-
             for quote in parsed_data:
-                quote_text = quote['tags']
+                quote_text = quote['text']
                 quote_author = quote['author']['name']
-                quote_tags = quote['text']
-                quote_obj = Quote(quote_text, quote_author, quote_tags)
+                quote_tags = quote['tags']
+                decoded_text = replace_unicode_escapes(quote_text)
+                cleaned_text = remove_unwanted_characters(decoded_text)
+                quote_obj = Quote(cleaned_text, quote_author, quote_tags)
                 quote_list.append(quote_obj)
 
             next_list_item = soup.find('li', class_='next')
@@ -51,7 +66,14 @@ if env_files:
                 url = next_url
             else:
                 break
-    quote_json = json.dumps([quote.__dict__ for quote in quote_list], indent=4)
+
+    quote_dicts = [quote.__dict__ for quote in quote_list]
+
+    for quote_dict in quote_dicts:
+        quote_dict['tags'] = '[' + ', '.join(quote_dict['tags']) + ']'
+
+    quote_json = json.dumps(quote_dicts, indent=4)
+
     with open(env_vars.output_file, 'w') as file:
         file.write(quote_json)
 else:
