@@ -69,8 +69,7 @@ if env_files:
 
     quote_dicts = [quote.__dict__ for quote in quote_list]
 
-    for quote_dict in quote_dicts:
-        quote_dict['tags'] = '[' + ', '.join(quote_dict['tags']) + ']'
+
 
     quote_json = json.dumps(quote_dicts, indent=4)
 
